@@ -1,17 +1,73 @@
-# MARINA Algorithm
-This repository provides an open-source implementation of the MARINA algorithm, first proposed in [可补充论文标题/作者/发表期刊，如："MARINA: A Multi-scale Adaptive Randomized Inference Algorithm for Network Analysis" (XXX, 20XX)].
+#MARINA 算法复现项目
+##项目简介
+本项目完整复现论文《MARINA: Multivariate Anomaly Detection and Root Cause Identification for Cloud-Native Applications》提出的 MARINA 算法，面向 K8s 云原生微服务容器场景，实现多指标时序预测、容器异常打分、故障根因定位全流程。
+基于 SockShop 微服务集群、ChaosMesh 故障注入、Prometheus 采集的真实容器监控时序数据完成验证，可用于云原生运维异常检测实验与课程复现作业。
+##MARINA 算法核心原理
+MARINA 专为微服务多维度 KPI 时序设计，三大核心模块：
+残差 MLP 时序模块：捕捉单指标自身长期时序趋势；
+空间注意力模块：建模 CPU、内存、Pod 重启、服务可用性多指标之间的依赖关联；
+多步预测异常打分 + 指标关联度根因诊断：通过预测残差计算 Pod 综合异常分，利用指标相关性定位故障根源。
+##环境依赖
+运行环境
+OS：Windows 10
+Python：3.9
+Python 依赖
+plaintext
+torch
+pandas
+numpy
+matplotlib
+scikit-learn
 
-## 算法简介
-MARINA is a [核心定位，如：novel iterative optimization/unsupervised learning] algorithm targeting [解决的问题，如：sparse graph reconstruction/streaming data clustering/distributed anomaly detection]. It features [关键创新点，如：adaptive sampling strategy/low computational complexity/robustness to noise], enabling efficient processing of [数据规模/场景，如：TB-level streaming data/distributed heterogeneous networks].
+##数据集说明
+数据来源
+本地 Minikube 部署 SockShop 电商微服务，使用 ChaosMesh 注入 Pod 故障，Prometheus 采集时序指标：
+CPU 使用率
+内存使用率
+Pod 重启次数
+服务可用性 up 指标
+数据划分
+基线正常样本：集群无故障运行采集数据
+异常样本：ChaosMesh 注入 Pod 故障阶段时序数据
+数据预处理
+支持动态归一化、静态 Z-score 归一化两种方案，内置时序对齐、缺失值填充、序列滑动窗口构造逻辑。
+实验内容与复现结果
+1. 消融实验（预测步长 48）
+验证空间注意力、归一化模块对模型性能影响
 
-## 仓库结构
-- `src/`: Core implementation of MARINA (including [模块，如：core logic/optimization module/evaluation utils])
-- `examples/`: Demo scripts & sample datasets for quick start
-- `docs/`: Algorithm derivation, usage guide & experimental results
-- `tests/`: Unit tests & performance benchmark scripts
+2. 多步时序预测对比
+测试 24/48/168 三种预测窗口性能
 
-## 快速开始
+结论：预测步长越大误差越高，MARINA 适合中短期时序预测，长序列精度存在优化空间。
+3. 基线模型对比（步长 48）
+同条件对比传统时序模型
 
+结论：MARINA 融合注意力机制，多指标联合建模能力显著优于传统单时序模型。
+4. 容器异常检测结果
+异常分数阈值：0.5
 
-# 运行示例
-python marina.py 
+5. 根因诊断效果
+通过指标皮尔逊关联度分析故障诱因：
+carts-b6c5c87f9-tht6g：CPU 与可用性指标相关系数 - 0.73，根因为 CPU 资源耗尽；
+carts-b6c5c87f9-4bwfj：无硬件资源极值，但时序波动大，运行不稳定；
+carts-db 实例：无异常关联信号，服务正常。
+实验结果与 ChaosMesh 人工注入故障场景完全匹配。
+
+#快速运行
+放置 Prometheus 导出的时序 csv 文件至data/目录
+
+执行训练与异常检测全流程
+bash
+运行
+python main.py
+实验指标与可视化图表自动输出至output/文件夹
+实验结论
+1.空间注意力是 MARINA 核心模块，移除后模型失效；在 SockShop 数据集上静态归一化效果优于论文原生动态归一化；
+2.MARINA 多指标联合预测精度优于 LSTM、普通 MLP，适配云原生多 KPI 场景；
+3。基于故障注入真实数据，算法可精准识别异常 Pod 并定位指标级故障根因，适用于 K8s 微服务运维监控。
+不足与后续优化方向
+长时序（168 步）预测误差偏高，可引入时序位置编码提升长期趋势捕捉能力；
+当前仅使用资源时序指标，可融合系统日志、服务调用链多源数据提升根因准确率；
+
+许可
+本项目仅供课程实验、学术复现学习使用，禁止商用。
